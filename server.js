@@ -3,16 +3,31 @@ const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const app = express();
 
 // JWT密钥
 const JWT_SECRET = 'your-secret-key';
 
-// 中间件配置
+// 静态文件中间件
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// CORS 和 JSON 中间件
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// 主页路由
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// 管理后台路由
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin', 'login.html'));
+});
 
 // 验证中间件
 const authenticateToken = (req, res, next) => {
@@ -32,6 +47,54 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+// 连接MongoDB
+mongoose.connect('mongodb://localhost:27017/alpha_studio', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
+
+// 项目模型
+const Project = mongoose.model('Project', {
+    name: String,
+    category: String,
+    year: Number,
+    description: String,
+    images: [String],
+    createdAt: { type: Date, default: Date.now }
+});
+
+// 用户模型
+const User = mongoose.model('User', {
+    username: String,
+    password: String
+});
+
+// 文件上传配置
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'public/uploads/')
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname))
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('不支持的文件类型'));
+        }
+    },
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 限制5MB
+    }
+});
+
 // 登录路由
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
@@ -41,31 +104,38 @@ app.post('/api/login', async (req, res) => {
         const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token });
     } else {
-        res.status(401).json({ message: '用户名或密码错误' });
+        res.status(401).json({ message: '用户名���密码错误' });
     }
 });
 
 // 受保护的路由
-app.post('/api/projects', authenticateToken, upload.array('images', 10), (req, res) => {
-    const { name, category, year, description } = req.body;
-    const images = req.files.map(file => `/uploads/${file.filename}`);
-    
-    const project = {
-        id: Date.now(),
-        name,
-        category,
-        year,
-        description,
-        images,
-        createdAt: new Date()
-    };
-    
-    projects.push(project);
-    res.json(project);
+app.post('/api/projects', authenticateToken, upload.array('images', 10), async (req, res) => {
+    try {
+        const { name, category, year, description } = req.body;
+        const images = req.files.map(file => `/uploads/${file.filename}`);
+        
+        const project = new Project({
+            name,
+            category,
+            year,
+            description,
+            images
+        });
+        
+        await project.save();
+        res.json(project);
+    } catch (error) {
+        res.status(500).json({ message: '项目创建失败', error: error.message });
+    }
 });
 
-app.get('/api/projects', (req, res) => {
-    res.json(projects);
+app.get('/api/projects', async (req, res) => {
+    try {
+        const projects = await Project.find().sort({ createdAt: -1 });
+        res.json(projects);
+    } catch (error) {
+        res.status(500).json({ message: '获取项目失败', error: error.message });
+    }
 });
 
 app.get('/api/projects/:id', (req, res) => {
@@ -79,19 +149,25 @@ app.get('/api/projects/:id', (req, res) => {
     }
 });
 
-app.delete('/api/projects/:id', authenticateToken, (req, res) => {
-    const projectId = parseInt(req.params.id);
-    const projectIndex = projects.findIndex(p => p.id === projectId);
-    
-    if (projectIndex === -1) {
-        return res.status(404).json({ message: '项目不存在' });
+app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
+    try {
+        const result = await Project.findByIdAndDelete(req.params.id);
+        if (!result) {
+            return res.status(404).json({ message: '项目不存在' });
+        }
+        res.json({ message: '项目已删除' });
+    } catch (error) {
+        res.status(500).json({ message: '删除失败', error: error.message });
     }
-    
-    projects.splice(projectIndex, 1);
-    res.json({ message: '项目已删除' });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+});
+
+// 错误处理中间件
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ message: '服务器错误', error: err.message });
 }); 
