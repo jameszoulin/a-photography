@@ -1,0 +1,92 @@
+.project-detail {
+    padding-top: 100px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+.project-header {
+    margin-bottom: 4rem;
+    text-align: center;
+}
+
+.project-header h1 {
+    font-size: 3rem;
+    font-weight: 300;
+    margin-bottom: 1rem;
+}
+
+.project-meta {
+    color: #666;
+}
+
+.project-meta span {
+    margin: 0 1rem;
+}
+
+.project-content {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 4rem;
+    margin-bottom: 4rem;
+}
+
+.project-description {
+    position: sticky;
+    top: 120px;
+    align-self: start;
+}
+
+.project-description p {
+    line-height: 1.8;
+    color: #666;
+}
+
+.project-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.project-gallery img {
+    width: 100%;
+    height: auto;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.project-gallery img.loaded {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.project-navigation {
+    display: flex;
+    justify-content: space-between;
+    padding: 2rem 0;
+    border-top: 1px solid #eee;
+}
+
+.project-navigation a {
+    text-decoration: none;
+    color: #333;
+    font-size: 0.9rem;
+    transition: color 0.3s;
+}
+
+.project-navigation a:hover {
+    color: #888;
+}
+
+@media (max-width: 968px) {
+    .project-content {
+        grid-template-columns: 1fr;
+    }
+
+    .project-description {
+        position: static;
+        margin-bottom: 2rem;
+    }
+} 
